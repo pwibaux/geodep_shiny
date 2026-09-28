@@ -54,6 +54,9 @@ sector_choices_ui <- list(
   )
 )
 
+COL_ZERO   <- "#a8a8a8"  
+COL_NODATA <- "transparent" 
+
 ## -----------------------------------------------------------------------
 ## 1. Small helpers
 ## -----------------------------------------------------------------------
@@ -507,9 +510,9 @@ ui <- fluidPage(
           width: 100%;
           min-height: 0;
           margin-bottom: 20px;
-          position : static;
-          top:auto;
-          max-height none;
+          position: static;
+          top: auto;
+          max-height: none;
         }
         .title-banner {
           grid-template-columns: 1fr;
@@ -603,7 +606,6 @@ ui <- fluidPage(
               uiOutput("partners_panel"),
               hr(),
               uiOutput("table_heading"),
-              # 2. Add spinner to the datatable
               withSpinner(
                 DTOutput("dependency_table"),
                 type = 8, color = "#1f6f5c", size = 1
@@ -645,7 +647,7 @@ server <- function(input, output, session) {
       ),
       p("The same four criteria, applied symmetrically, define ", tags$strong("export-dependent"),
         " products: import concentration and world import concentration replace the export-side equivalents, and the roles of imports and exports are reversed in the non-substitutability ratio. Use the \u201cShow dependencies for\u201d toggle above the map to switch between the two views."),
-      p("On the map, exposure is shown either as the share of traded HS6 products for which the country is dependent (\u201cShare of products\u201d), or as the share of its total trade value concentrated in those dependent products (\u201cShare of trade value\u201d)."),
+      p("On the map, exposure is shown either as the share of traded HS6 products for which the country is dependent (\u201cShare of products\u201d), or as the share of its total trade value concentrated in those dependent products (\u201cShare of trade value\u201d). Countries shown in dark grey are not dependent on any product (0%); countries left blank have no data."),
       p("When an Importer and an Exporter are both selected, the partner panels show their ",
         tags$em("leading"), " dependency partner \u2014 for the Importer, the exporter supplying the largest share of a given dependent product's import value; for the Exporter, the destination absorbing the largest share of a given dependent product's export value."),
       p("Sector groupings (Critical Raw Materials, Dual Use, Health, Agrifood, Energy, Other) come from dedicated reference lists (UNCTAD, EU dual-use regulation, CEPII health nomenclature, FAO, World Bank) and are only available for ", tags$strong("Import"), " dependencies (GeoDep_M); Export dependencies (GeoDep_X) are not sector-tagged."),
@@ -878,11 +880,33 @@ server <- function(input, output, session) {
   
   sector_map_sf <- reactive({
     counts <- active_map_data()
+    sel    <- selected_countries()
     
-    world_polygons |>
+    out <- world_polygons |>
       mutate(iso_plot = to_eun(iso_a3)) |>
       mutate(feature_id = paste0(iso_a3, "___", row_number())) |>
       left_join(counts, by = "iso_plot")
+
+    
+    if (length(sel) >= 1) {
+      countries_with_data <- if (input$dep_direction == "import") {
+        unique(traded_by_country$iso_d)
+      } else {
+        unique(traded_by_country_export$iso_o)
+      }
+      
+      n_tot <- if (all(is.na(out$n_total))) 0 else max(out$n_total, na.rm = TRUE)
+      
+      out <- out |>
+        mutate(
+          has_data    = iso_plot %in% countries_with_data,
+          count_share = if_else(is.na(count_share) & has_data, 0, count_share),
+          value_share = if_else(is.na(value_share) & has_data, 0, value_share),
+          n_dep       = if_else(is.na(n_dep)       & has_data, 0, n_dep),
+          n_total     = if_else(is.na(n_total)     & has_data, n_tot, n_total)
+        )
+    }
+    out
   })
   
   output$intro_text <- renderUI({
@@ -947,22 +971,36 @@ server <- function(input, output, session) {
       }
     }
     
+    pos_vals   <- fill_values[!is.na(fill_values) & fill_values > 0]
+    pal_domain <- if (length(pos_vals) > 0) pos_vals else c(0, 1) 
+    
     pal <- colorNumeric(
       palette  = "RdYlGn",
-      domain   = fill_values,
+      domain   = pal_domain,
       reverse  = TRUE,
-      na.color = "lightgrey"
+      na.color = "transparent"
+    )
+    
+    fill_col <- dplyr::case_when(
+      is.na(fill_values) ~ COL_NODATA,
+      fill_values == 0   ~ COL_ZERO,
+      TRUE               ~ pal(fill_values)
     )
     
     label_text <- with(map_sf, {
       header <- if_else(iso_plot == "EUN", "European Union (EU-27)", name)
       detail <- if (metric == "count") {
-        paste0(
-          ifelse(is.na(count_share), "0%", paste0(round(count_share, 1), "%")),
-          " (", ifelse(is.na(n_dep), 0, n_dep), " of ", ifelse(is.na(n_total), 0, n_total), " products)"
+        ifelse(
+          is.na(count_share), "No data",
+          paste0(round(count_share, 1), "% (",
+                 ifelse(is.na(n_dep), 0, n_dep), " of ",
+                 ifelse(is.na(n_total), 0, n_total), " products)")
         )
       } else {
-        paste0(ifelse(is.na(value_share), "0%", paste0(round(value_share, 1), "%")), " of trade value")
+        ifelse(
+          is.na(value_share), "No data",
+          paste0(round(value_share, 1), "% of trade value")
+        )
       }
       paste0("<strong>", header, "</strong><br/>", metric_label, ": ", detail)
     })
@@ -972,7 +1010,7 @@ server <- function(input, output, session) {
       clearShapes() |>
       clearControls() |>
       addPolygons(
-        fillColor   = ~pal(fill_values),
+        fillColor   = fill_col,
         weight      = 1,
         color       = "white",
         fillOpacity = 0.7,
@@ -993,13 +1031,21 @@ server <- function(input, output, session) {
       addLegend(
         position  = "bottomleft",
         pal       = pal,
-        values    = fill_values,
+        values    = pal_domain,
         title     = HTML(paste0(
           metric_label, "<br/>(%)",
           "<br/><span style='font-weight:normal; font-size:10px; color:#666;'>Source: GeoDep IFE-CEPII (2026)</span>"
         )),
         labFormat = labelFormat(suffix = "%"),
-        na.label  = "0%"
+        na.label  = "",
+        layerId   = "legend_main"
+      ) |>
+      addLegend(
+        position = "bottomleft",
+        colors   = c(COL_ZERO, "#ffffff; border:1px solid #999"),
+        labels   = c("Not dependent (0%)", "No data"),
+        opacity  = 0.9,
+        layerId  = "legend_states"
       )
     if (length(sel) >= 1) {
       imp_sf <- map_sf |> filter(iso_plot == sel[1])
@@ -1162,7 +1208,7 @@ server <- function(input, output, session) {
         title = title_text,
         subtitle = subtitle_text,
         fill = NULL,
-        caption = "Source : GeoDep IFE-CEPII (2026)  •  Note: sectors are not mutually exclusive, a product can belong to more than one sector"
+        caption = "Source : GeoDep IFE-CEPII (2026)  \u2022  Note: sectors are not mutually exclusive, a product can belong to more than one sector"
       ) +
       theme_minimal(base_size = 12) +
       theme(

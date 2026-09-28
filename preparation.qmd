@@ -20,6 +20,8 @@ library(countrycode)
 library(haven)
 library(rnaturalearth)
 library(sf)
+library(knitr)
+
 
 rm(list = ls())
 here::i_am('geodep_shiny.Rproj')
@@ -214,3 +216,4 @@ saveRDS(geodep_inputs, "1_Data/geodep_shiny_inputs.rds")
 cat("Precomputation done. Saved 1_Data/geodep_shiny_inputs.rds",
     "(", format(object.size(geodep_inputs), units = "MB"), ")\n")
 ```
+
