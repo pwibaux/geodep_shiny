@@ -1208,7 +1208,7 @@ server <- function(input, output, session) {
         title = title_text,
         subtitle = subtitle_text,
         fill = NULL,
-        caption = "Source : GeoDep IFE-CEPII (2026)  \u2022  Note: sectors are not mutually exclusive, a product can belong to more than one sector"
+        caption = "Source : GeoDep IFE-CEPII (2026) \n  Note: sectors are not mutually exclusive, a product can belong to more than one sector"
       ) +
       theme_minimal(base_size = 12) +
       theme(
