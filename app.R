@@ -417,10 +417,13 @@ ui <- fluidPage(
         font-size: 11px;
         padding: 6px 10px;
         line-height: 1.3;
-        max-width: 170px;
+        max-width: 300px;
       }
       .leaflet-control.info.legend strong {
         font-size: 11px;
+      }
+      .horizontal-legend {
+        width: 290px;
       }
 
       hr {
@@ -528,6 +531,9 @@ ui <- fluidPage(
         }
         .title-banner h1 {
           font-size: 22px;
+        }
+        .horizontal-legend {
+          width: 230px;
         }
       }
     "))
@@ -886,7 +892,7 @@ server <- function(input, output, session) {
       mutate(iso_plot = to_eun(iso_a3)) |>
       mutate(feature_id = paste0(iso_a3, "___", row_number())) |>
       left_join(counts, by = "iso_plot")
-
+    
     
     if (length(sel) >= 1) {
       countries_with_data <- if (input$dep_direction == "import") {
@@ -1006,6 +1012,66 @@ server <- function(input, output, session) {
     })
     label_arg <- lapply(label_text, HTML)
     
+    rng          <- range(pal_domain)
+    grad_cols    <- pal(seq(rng[1], rng[2], length.out = 10))
+    gradient_css <- paste0("linear-gradient(to right, ",
+                           paste(grad_cols, collapse = ", "), ")")
+
+    span <- diff(rng)
+    if (span > 0) {
+      step_candidates <- c(0.5, 1, 2, 2.5, 5, 10, 20, 25, 50)
+      tick_counts <- sapply(step_candidates, function(s) {
+        lo   <- floor(rng[1] / s) * s
+        hi   <- ceiling(rng[2] / s) * s
+        vals <- seq(lo, hi, by = s)
+        sum(vals >= rng[1] & vals <= rng[2])
+      })
+      best_step <- step_candidates[which.min(abs(tick_counts - 4))]
+      lo        <- floor(rng[1] / best_step) * best_step
+      hi        <- ceiling(rng[2] / best_step) * best_step
+      tick_vals <- seq(lo, hi, by = best_step)
+      tick_vals <- tick_vals[tick_vals >= rng[1] & tick_vals <= rng[2]]
+      if (length(tick_vals) < 2) {
+        tick_vals <- round(seq(rng[1], rng[2], length.out = 4) / best_step) * best_step
+      }
+      tick_pos  <- 100 * (tick_vals - rng[1]) / span
+    } else {
+      tick_vals <- round(rng[1] / 5) * 5
+      tick_pos  <- 50
+    }
+    ticks_html <- paste0(
+      "<div style='position:absolute; left:", tick_pos, "%; top:0; ",
+      "transform:translateX(-50%); text-align:center;'>",
+      "<div style='width:1px; height:5px; background:#666; margin:0 auto;'></div>",
+      "<div style='font-size:10px; margin-top:1px; white-space:nowrap;'>",
+      round(tick_vals, 1), "%</div></div>",
+      collapse = ""
+    )
+    
+    legend_html <- paste0(
+      "<div class='horizontal-legend'>",
+      "<div style='font-weight:bold; margin-bottom:4px;'>", metric_label, " (%)</div>",
+
+      "<div style='margin:0 16px;'>",
+      "<div style='height:12px; width:100%; opacity:0.7; border:1px solid #ccc; ",
+      "box-sizing:border-box; background:", gradient_css, ";'></div>",
+      "<div style='position:relative; height:26px;'>", ticks_html, "</div>",
+      "</div>",
+
+      "<div style='display:flex; gap:14px; margin-top:6px;'>",
+      "<span><i style='display:inline-block; width:12px; height:12px; ",
+      "vertical-align:middle; margin-right:4px; background:", COL_ZERO, ";'></i>",
+      "Not dependent (0%)</span>",
+      "<span><i style='display:inline-block; width:12px; height:12px; ",
+      "vertical-align:middle; margin-right:4px; background:#fff; border:1px solid #999;'></i>",
+      "No data</span>",
+      "</div>",
+      
+      "<div style='font-size:10px; color:#666; margin-top:4px;'>",
+      "Source: GeoDep IFE-CEPII (2026)</div>",
+      "</div>"
+    )
+    
     proxy <- leafletProxy("dependency_map", data = map_sf) |>
       clearShapes() |>
       clearControls() |>
@@ -1028,25 +1094,13 @@ server <- function(input, output, session) {
           direction = "auto"
         )
       ) |>
-      addLegend(
+      addControl(
+        html      = HTML(legend_html),
         position  = "bottomleft",
-        pal       = pal,
-        values    = pal_domain,
-        title     = HTML(paste0(
-          metric_label, "<br/>(%)",
-          "<br/><span style='font-weight:normal; font-size:10px; color:#666;'>Source: GeoDep IFE-CEPII (2026)</span>"
-        )),
-        labFormat = labelFormat(suffix = "%"),
-        na.label  = "",
-        layerId   = "legend_main"
-      ) |>
-      addLegend(
-        position = "bottomleft",
-        colors   = c(COL_ZERO, "#ffffff; border:1px solid #999"),
-        labels   = c("Not dependent (0%)", "No data"),
-        opacity  = 0.9,
-        layerId  = "legend_states"
+        layerId   = "legend_main",
+        className = "info legend"
       )
+    
     if (length(sel) >= 1) {
       imp_sf <- map_sf |> filter(iso_plot == sel[1])
       if (nrow(imp_sf) > 0) {
@@ -1581,14 +1635,18 @@ server <- function(input, output, session) {
       base        <- dep_import_base |> filter(iso_d == iso1)
       total_col   <- "import_dpt"
       total_label <- "Total Imports (World, k$)"
-      partner_label  <- "First exporter"
+      partner_label  <- "First exporter (% share)"
       partner_col <- "first_odpt"
+      value_col   <- "imports"
+      match_col   <- "iso_o"
     } else {
       base        <- dep_export_base |> filter(iso_o == iso1)
       total_col   <- "export_opt"
       total_label <- "Total Exports (World, k$)"
-      partner_label  <- "First destination"
+      partner_label  <- "First destination (% share)"
       partner_col <- "first_dpto"
+      value_col   <- "imports"
+      match_col   <- "iso_d"
     }
     
     if (input$sector_filter != "all" && input$sector_filter %in% names(base)) {
@@ -1601,10 +1659,24 @@ server <- function(input, output, session) {
     )
     
     optional_cols <- setdiff(optional_cols, "sect_strategic")
+
+    share_lookup <- base |>
+      filter(.data[[match_col]] == .data[[partner_col]]) |>
+      mutate(partner_share = 100 * .data[[value_col]] / .data[[total_col]]) |>
+      distinct(hs6, partner_share)
     
     result <- base |>
       mutate(!!partner_label := iso_name(.data[[partner_col]])) |>
       distinct(across(all_of(c("hs6", total_col, partner_label, optional_cols)))) |>
+      left_join(share_lookup, by = "hs6") |>
+      mutate(
+        !!partner_label := if_else(
+          !is.na(partner_share),
+          paste0(.data[[partner_label]], " (", round(partner_share, 1), "%)"),
+          .data[[partner_label]]
+        )
+      ) |>
+      select(-partner_share) |>
       arrange(desc(.data[[total_col]]))
     
     colnames(result)[colnames(result) == "hs6"]      <- "HS6 Product"
@@ -1635,8 +1707,8 @@ server <- function(input, output, session) {
       "HS6 Product",
       "Description",
       "Sector",
-      "First exporter",
-      "First destination",
+      "First exporter (% share)",
+      "First destination (% share)",
       "Total Imports (World, k$)",
       "Total Exports (World, k$)"
     )
