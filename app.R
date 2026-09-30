@@ -127,9 +127,9 @@ generate_readme <- function(direction, selection, sector_filter, map_metric,
       "Name of the dataset : ", zip_filename, "\n",
       "Format : csv\n",
       "Delimiter : ,\n\n",
-      "Release Date : \n\n",
-      "Weblink : https://www.cepii.fr/CEPII/fr/bdd_modele/bdd_modele_item.asp?id=41\n\n",
-      "DOI : \n\n",
+      "Release Date : \n\n", #to be modified
+      "Weblink : https://www.cepii.fr/CEPII/fr/bdd_modele/bdd_modele_item.asp?id=41\n\n", #to be modified
+      "DOI : \n\n", #to be modified
       "Size (unzipped) : ", unzipped_line, "\n\n",
       "Size (zipped) : ", zipped_line, "\n\n",
       "Software : this dataset was created using Stata 16\n\n",
@@ -155,7 +155,7 @@ generate_readme <- function(direction, selection, sector_filter, map_metric,
       "Additional useful information : Not applicable\n\n",
       "Example of 1 line : Not applicable\n\n",
       "Licence : Creative Commons BY NC SA\n\n",
-      "Reference (Please cite when using this dataset) : \n\n",
+      "Reference (Please cite when using this dataset) : \n\n", #to be modified
       selection_line, "\n"
     )
   } else {
@@ -163,9 +163,9 @@ generate_readme <- function(direction, selection, sector_filter, map_metric,
       "Name of the dataset : ", zip_filename, "\n",
       "Format : csv\n",
       "Delimiter : ,\n\n",
-      "Release Date : \n\n",
-      "Weblink : https://www.cepii.fr/CEPII/fr/bdd_modele/bdd_modele_item.asp?id=41\n\n",
-      "DOI : \n\n",
+      "Release Date : \n\n", #to be modified
+      "Weblink : https://www.cepii.fr/CEPII/fr/bdd_modele/bdd_modele_item.asp?id=41\n\n", #to be modified
+      "DOI : \n\n", #to be modified
       "Size (unzipped) : ", unzipped_line, "\n\n",
       "Size (zipped) : ", zipped_line, "\n\n",
       "Software : this dataset was created using Stata 16\n\n",
@@ -185,7 +185,7 @@ generate_readme <- function(direction, selection, sector_filter, map_metric,
       "Additional useful information : Not applicable\n\n",
       "Example of 1 line : Not applicable\n\n",
       "Licence : Creative Commons BY NC SA\n\n",
-      "Reference (Please cite when using this dataset) : \n\n",
+      "Reference (Please cite when using this dataset) : \n\n",  #to be modified
       selection_line, "\n"
     )
   }
@@ -635,10 +635,10 @@ server <- function(input, output, session) {
       title = "Methodology",
       size = "l",
       p("This app is built on the GeoDep database (CEPII), using the methodology described in ",
-        tags$a(href = "https://www.cepii.fr/CEPII/fr/publications/pb/abstract.asp?NoDoc=14223",
+        tags$a(href = "https://www.cepii.fr/CEPII/fr/publications/pb/abstract.asp?NoDoc=14223", #to be modified
                target = "_blank",
                "Lefebvre & Wibaux (2024), \u201cImport Dependencies: Where Does the EU Stand?\u201d, CEPII Policy Brief n\u00b02024-47"),
-        "."),
+        "."), #to be modified
       p("A product (HS 6-digit) is classified as ", tags$strong("import-dependent"),
         " for a country only if it meets all four of the following criteria at once:"),
       tags$ol(
